@@ -262,3 +262,11 @@ Login: **admin@blog.demo** / **password** → http://127.0.0.1:8000/admin
 **Install alignment:** [wiring.md](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md) (MCP + Inertia errors bag).
 
 **MCP article material:** [`docs/mcp-log.md`](mcp-log.md), artifacts under `docs/screenshots/mcp/`, runner `scripts/mcp-e2e.sh`.
+
+## 2026-10-16 — MCP article scenario (Max follow-up)
+
+- **Posts table:** `created_at` column (sortable) + `Daterange::make('created_at')` filter for MCP `query`.
+- **Seeds:** five `stale-draft-*` posts with `created_at` 10–60 days ago; recent drafts stay &lt; 7 days.
+- **`scripts/mcp-e2e.sh`:** dynamic cutoff date, `query` → pick 3 oldest `_key`s → `execute` bulkPublish (no hardcoded ids).
+- **Captures:** `01-initialize` … `05-execute-bulk-publish` + `02-tools-list` after `migrate:fresh --seed`.
+- **Tests:** `AdminMcpTest` — 403 without `tbtop-mcp` ability; auth pages absent from `search`.

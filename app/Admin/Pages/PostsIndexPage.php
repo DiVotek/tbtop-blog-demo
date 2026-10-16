@@ -10,6 +10,7 @@ use Tbtop\Admin\Actions\Effects;
 use Tbtop\Admin\Dsl\Actions\DeleteAction;
 use Tbtop\Admin\Dsl\Color;
 use Tbtop\Admin\Dsl\Column;
+use Tbtop\Admin\Dsl\Fields\Daterange;
 use Tbtop\Admin\Dsl\Fields\InFilter;
 use Tbtop\Admin\Dsl\Fields\Select;
 use Tbtop\Admin\Dsl\Node;
@@ -54,6 +55,7 @@ class PostsIndexPage extends Page
                     Column::make('category.name')->label('Category'),
                     Column::make('author.name')->label('Author'),
                     Column::make('published_at')->label('Published')->date('Y-m-d')->sortable(),
+                    Column::make('created_at')->label('Created')->date('Y-m-d')->sortable(),
                 ])
                 ->filters([
                     InFilter::make('status')
@@ -75,6 +77,7 @@ class PostsIndexPage extends Page
                                 ->values()
                                 ->all()
                         ),
+                    Daterange::make('created_at')->label('Created'),
                 ])
                 ->tabs([
                     Tab::make('all')->label('All'),

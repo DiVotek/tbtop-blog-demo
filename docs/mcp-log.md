@@ -1,150 +1,163 @@
 # MCP access log — blog demo
 
-Material for **“Giving Claude access to your admin without fearing for your data”**. All calls target the seeded app (`admin@blog.demo`) with **documented** tbtop MCP tools (`search`, `query`, `execute`) from [wiring.md](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md).
+Material for **“Giving Claude access to your admin without fearing for your data”**. Scenario: **find draft posts older than a week and publish the three oldest** using only documented tbtop MCP tools (`search`, `query`, `execute`) per [wiring.md](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md).
 
-## What we verified
+All captures below come from **one run** on a **fresh database** (`php artisan migrate:fresh --seed`) via `./scripts/mcp-e2e.sh` (2026-10-16, app served at `http://127.0.0.1:8000`).
 
-| Step | Verified |
-|------|----------|
-| Sanctum token with `tbtop-mcp` ability | Yes (tinker + PHPUnit `AdminMcpTest`) |
-| `abilities` middleware alias | Yes (`bootstrap/app.php`) |
-| `POST /admin/mcp` initialize | Yes (curl + script) |
-| `search` lists pages/executables | Yes |
-| `query` reads `posts` table with filters | Yes |
-| `execute` runs `posts-index-page:bulkPublish` | Yes (3 drafts → published) |
-| Claude Desktop / mcp-remote on this VM | **Not run** (no desktop app); config documented from wiring.md |
-| Cursor IDE MCP UI | **Not run** in cloud VM; HTTP config template committed |
+## Capture index
 
-## Threat model (from docs, observed)
+| Step | File | What it records |
+|------|------|-----------------|
+| 1 | `docs/screenshots/mcp/01-initialize.json` | MCP `initialize` handshake |
+| 2 | `docs/screenshots/mcp/02-tools-list.json` | `tools/list` — `readOnlyHint` on `search`/`query`, `destructiveHint` on `execute` |
+| 3 | `docs/screenshots/mcp/03-search.json` | Full panel `search` (pages, filters, sortable columns) |
+| 4 | `docs/screenshots/mcp/04-query-old-drafts.json` | `query` — draft tab + `created_at` daterange + sort |
+| 5 | `docs/screenshots/mcp/05-execute-bulk-publish.json` | `execute` — `posts-index-page:bulkPublish` |
 
-- **Token ability:** Only tokens with `tbtop-mcp` pass `abilities:tbtop-mcp` on the MCP route; other Sanctum tokens get 403.
-- **Panel middleware not reused:** MCP uses its own stack (`auth:sanctum`, abilities, `throttle:60,1`); bearer auth, not session cookies.
-- **Origin check:** Browser `Origin` must match `app.url` or `mcpAllowedOrigins`; **no Origin** (curl, Claude Desktop, Cursor CLI) passes — we used curl without Origin.
-- **Page/action curation:** `LoginPage` is listed in `search` but sign-in over MCP is impractical (stateless token). Destructive actions are exposed; **`execute` is always annotated destructive** — the **MCP client** is responsible for confirmation UI, not tbtop.
-- **Row trust:** `selection` / `row` are client-supplied; handlers should re-load by key (our bulk publish uses Eloquent `whereKey`).
+## Host prerequisites
 
-## 1. Host wiring (already in repo)
+- `PostsIndexPage` exposes **`created_at`** as a **sortable** column and a **`Daterange`** filter (`Daterange::make('created_at')`) so MCP `query` can filter/sort per `search()` metadata.
+- Seed data includes **five** drafts with `created_at` **> 7 days ago** (`stale-draft-*` in `BlogSeeder`) plus recent drafts that must **not** match the cutoff filter.
+- `bootstrap/app.php`: `abilities` → `CheckAbilities::class`.
+- `AdminPanel::mcp(['auth:sanctum', 'abilities:tbtop-mcp', 'throttle:60,1'])`.
 
-```php
-// app/Admin/AdminPanel.php
-->mcp(['auth:sanctum', 'abilities:tbtop-mcp', 'throttle:60,1']);
-
-// bootstrap/app.php
-$middleware->alias(['abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class]);
-```
-
-## 2. Create a token (once per client)
+## Token
 
 ```bash
 php artisan tinker
 >>> $u = App\Models\User::where('email', 'admin@blog.demo')->first();
->>> $u->createToken('cursor-mcp', ['tbtop-mcp'])->plainTextToken;
+>>> $u->createToken('mcp-demo', ['tbtop-mcp'])->plainTextToken;
 ```
 
-Store the plain text value in an env var (never commit it).
+PHPUnit: `AdminMcpTest` — token **without** `tbtop-mcp` → **403**; with ability → **200**.
 
-## 3. Cursor (HTTP MCP)
+## Client config
 
-Project template: [`docs/mcp-http-client.json`](mcp-http-client.json)
+- **Cursor (HTTP):** [`docs/mcp-http-client.json`](mcp-http-client.json) — `Authorization: Bearer ${env:TBTOP_TOKEN}`.
+- **Claude Desktop:** bridge with `mcp-remote` per [wiring.md § Connect a client](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md) (not exercised on the cloud VM).
+
+## Scripted scenario (`scripts/mcp-e2e.sh`)
+
+**Selection rule (documented in script):** after `query` with `sort: created_at`, `dir: asc`, take the **first three rows** (`_key` values) — i.e. the **three oldest drafts** that match the filters.
+
+**Cutoff:** `created_at.to = UTC date of (today − 7 days)` so rows with `created_at` on or before that date are “older than a week” (matches `Daterange` filter `to` bound in `TableFilterApplier`).
+
+**Query arguments (id 4):**
 
 ```json
 {
-  "mcpServers": {
-    "tbtop-blog-demo": {
-      "url": "http://127.0.0.1:8000/admin/mcp",
-      "headers": {
-        "Authorization": "Bearer ${env:TBTOP_TOKEN}"
-      }
-    }
+  "page": "posts-index-page",
+  "table": "posts",
+  "tab": "draft",
+  "filters": { "created_at": { "to": "2026-10-09" } },
+  "sort": "created_at",
+  "dir": "asc",
+  "perPage": 25
+}
+```
+
+(`2026-10-09` was the cutoff for the captured run; the script computes this dynamically.)
+
+### Excerpt — initialize (`01-initialize.json`)
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2025-11-25",
+    "serverInfo": { "name": "Tabletop Admin", "version": "1.0.0" }
   }
 }
 ```
 
-Set `TBTOP_TOKEN` in your shell or Cursor secrets.
-
-## 4. Claude Desktop (stdio bridge)
-
-From [wiring.md § Connect a client](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md):
+### Excerpt — tools/list (`02-tools-list.json`)
 
 ```json
 {
-  "mcpServers": {
-    "tbtop": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://127.0.0.1:8000/admin/mcp", "--header", "Authorization:${TBTOP_AUTH}"],
-      "env": { "TBTOP_AUTH": "Bearer 1|your-token" }
-    }
-  }
+  "name": "search",
+  "annotations": { "readOnlyHint": true }
 }
-```
-
-## 5. Scripted scenario (this run)
-
-**Goal:** “Find drafts and publish three of them” — stand-in for “drafts older than a week, publish the best 3” (seed data does not age posts; filter `status=draft` used instead).
-
-```bash
-php artisan serve   # terminal 1
-./scripts/mcp-e2e.sh
-```
-
-### Request / response excerpts
-
-**Initialize** (`docs/screenshots/mcp/01-initialize.json`):
-
-```http
-POST /admin/mcp
-Authorization: Bearer …
-```
-
-```json
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","serverInfo":{"name":"Tabletop Admin","version":"1.0.0"},…}}
-```
-
-**search** — returns `posts-index-page` with executable `posts-index-page:bulkPublish` (`needs: ["selection"]`). Full payload: `02-search.json`.
-
-**query** — drafts only:
-
-```json
-{"name":"query","arguments":{"page":"posts-index-page","table":"posts","filters":{"status":"draft"}}}
-```
-
-Sample row: `{"title":"Draft: upcoming editor improvements","_key":2,…}` — see `03-query-drafts.json`.
-
-**execute** — bulk publish (destructive; client should confirm):
-
-```json
+{
+  "name": "query",
+  "annotations": { "readOnlyHint": true }
+}
 {
   "name": "execute",
-  "arguments": {
-    "id": "posts-index-page:bulkPublish",
-    "selection": ["2", "10", "11"]
-  }
+  "annotations": { "destructiveHint": true }
 }
 ```
 
-Response (`04-execute-bulk-publish.json`):
+`tbtop` marks `execute` destructive; **the MCP client** decides whether to ask the user to confirm — the server does not enforce confirmations.
+
+### Excerpt — search posts table filters (`03-search.json`)
+
+From `posts-index-page` → `tables[0].filters`:
 
 ```json
-{"ok":true,"effects":[{"kind":"notify","message":"Published 3 post(s)"},{"kind":"refreshTable","table":"posts"}]}
+{
+  "name": "created_at",
+  "kind": "daterange",
+  "label": "Created",
+  "value": "{\"from\": \"Y-m-d\", \"to\": \"Y-m-d\"}, either bound optional"
+}
 ```
 
-### PHPUnit
+`sortable` includes `created_at`. Auth pages are **not** listed: `LoginPage` extends `AuthPage`, which sets `Page::mcp(): false` in v0.7.0 (verified by `AdminMcpTest::test_mcp_search_does_not_list_auth_pages`).
 
-`tests/Feature/AdminMcpTest.php` — 401 without token, 200 initialize with `tbtop-mcp` ability.
+### Excerpt — query result (`04-query-old-drafts.json`)
 
-## Failures & workarounds
+First three rows returned (oldest drafts at or before cutoff):
 
-| Issue | Workaround |
-|-------|------------|
-| `execute` with `executable` key | Use **`id`** per `ExecuteTool` schema (`posts-index-page:bulkPublish`). |
-| `abilities` middleware unknown | Register alias in `bootstrap/app.php` (documented in wiring.md, easy to miss). |
-| Wrong `page` slug in `query` | Use slug from `search()` (e.g. `posts-index-page`, not `posts`). |
+```json
+[
+  { "title": "Stale draft: onboarding doc", "created_at": "2026-08-17", "_key": 8 },
+  { "title": "Stale draft: perf audit backlog", "created_at": "2026-09-01", "_key": 7 },
+  { "title": "Stale draft: migration checklist", "created_at": "2026-09-25", "_key": 5 }
+]
+```
 
-## Undocumented / inferred
+### Excerpt — execute (`05-execute-bulk-publish.json`)
 
-- Exact JSON shape for `tools/call` is defined by `laravel/mcp`, not duplicated on docs.tbtop.dev — we followed wiring.md curl examples + `ExecuteTool::schema()`.
-- Choosing “best 3” drafts is **agent logic**; tbtop only exposes `query` + `execute`.
+Request (built by script from `_key` values above):
 
-## Screenshots / captures
+```json
+{
+  "id": "posts-index-page:bulkPublish",
+  "selection": ["8", "7", "5"]
+}
+```
 
-Terminal JSON artifacts: `docs/screenshots/mcp/01-initialize.json` … `04-execute-bulk-publish.json`.
+Response body (`result.content[0].text`):
+
+```json
+{
+  "ok": true,
+  "effects": [
+    { "kind": "notify", "message": "Published 3 post(s)", "level": "success" },
+    { "kind": "refreshTable", "table": "posts" }
+  ]
+}
+```
+
+## Threat model (accurate for v0.7.0)
+
+| Control | Behavior |
+|---------|----------|
+| Token ability | MCP route uses `abilities:tbtop-mcp`. Tokens **without** that ability receive **403** (`AdminMcpTest`). |
+| Auth pages | `AuthPage::mcp()` is **false** — login/forgot/reset are **hidden** from `search`, not merely “impractical”. |
+| Origin | Browser `Origin` checked; CLI/curl with no `Origin` passes (`ValidateMcpOrigin`). |
+| Throttle | `throttle:60,1` on MCP middleware stack. |
+| Destructive actions | `execute` annotated `destructiveHint`; confirmations are **client-side**. |
+
+## Verified vs not
+
+| Item | Status |
+|------|--------|
+| Full script on fresh DB | Verified (this capture set) |
+| Cursor / Claude Desktop UI | Not verified on cloud VM (config documented) |
+| “Best” editorial judgment | **Agent logic** — demo uses **oldest three by `created_at`** as a stand-in |
+
+## Undocumented / package-defined
+
+- JSON-RPC envelope and `tools/list` shape come from `laravel/mcp`; tbtop documents the three tool **names** and behavior in wiring.md.
