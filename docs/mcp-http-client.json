@@ -3,7 +3,7 @@
     "tbtop-blog-demo": {
       "url": "http://127.0.0.1:8000/admin/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_SANCTUM_TOKEN"
+        "Authorization": "Bearer ${env:TBTOP_TOKEN}"
       }
     }
   }

@@ -39,7 +39,7 @@ php8.4 composer require laravel/mcp:^1.0   # optional, for MCP endpoint
 
 ## 3. Panel registration before `admin:install --auth` (~10 min)
 
-**Docs:** [wiring.md](https://github.com/DiVotek/tbtop/blob/v0.7.0/packages/php/docs/ai/wiring.md) (in vendor) states `admin:install --auth` needs a registered panel.
+**Docs:** [wiring.md](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md) states `admin:install --auth` needs a registered panel.
 
 **Commands**
 
@@ -97,7 +97,7 @@ $middleware->redirectGuestsTo(
 npm install @tbtop/inertia-admin@0.7.0 react@^19 react-dom@^19 @inertiajs/react@^3.3 @vitejs/plugin-react@^4 --legacy-peer-deps
 ```
 
-Added `.npmrc` with `legacy-peer-deps=true` because `@vitejs/plugin-react@4` conflicts with Vite 8’s peer range on a stock Laravel 12 app.
+Added `.npmrc` with `legacy-peer-deps=true` because `@vitejs/plugin-react@4` conflicts with Vite 8’s peer range on a stock Laravel 13 app.
 
 **Files edited**
 
@@ -173,7 +173,7 @@ Pattern: one PHP class per route under `app/Admin/Pages/`, discovered automatica
 
 - `AdminPanel::configure()` → `->mcp(['auth:sanctum', 'abilities:tbtop-mcp'])`
 - `User` uses `Laravel\Sanctum\HasApiTokens`
-- Template: `docs/mcp-claude-desktop.json`
+- Template: `docs/mcp-http-client.json`
 
 **Not fully E2E-tested** in this run (no token minted in CI). Route registers as `POST admin/mcp` when `laravel/mcp` is present. Token creation per [wiring.md MCP section](https://github.com/DiVotek/tbtop/blob/v0.7.0/packages/php/docs/ai/wiring.md).
 
@@ -220,7 +220,7 @@ Captured after `php artisan serve` with seeded data.
 5. **`NavGroup` namespace** — Easy to import from wrong namespace; demo source is the source of truth.
 6. **Column helpers** — No `counts()` on `Column`; relationship counts need `withCount` + column name (undocumented helper assumed from Filament muscle memory).
 7. **Many-to-many tags** — Documented pattern is `relation()` for belongs-to; for belongs-to-many, `select()->multiple()` + manual `sync()` works but is not spelled out in a blog-style recipe.
-8. **npm peer deps** — Laravel 12 + Vite 8 + `@vitejs/plugin-react@4` needs `--legacy-peer-deps`; note in install steps for the admin entry.
+8. **npm peer deps** — Laravel 13 + Vite 8 + `@vitejs/plugin-react@4` needs `--legacy-peer-deps`; note in install steps for the admin entry.
 9. **MCP** — Clear in `wiring.md` once found; surfacing a “copy token” artisan snippet on `docs.tbtop.dev` would complete the story.
 
 ---
@@ -239,3 +239,26 @@ php artisan serve
 ```
 
 Login: **admin@blog.demo** / **password** → http://127.0.0.1:8000/admin
+
+---
+
+## 2026-10-16 — PR #1 review fixes (Max)
+
+| ID | Fix | Verification |
+|----|-----|----------------|
+| A2 | `PostEditPage` unpublish uses `->redirect('/admin/posts/{id}/edit')` instead of invalid `->reload()` | `AdminPostActionsTest::test_unpublish_action_redirects_without_calling_reload` |
+| A3 | `abilities` → `CheckAbilities` alias in `bootstrap/app.php`; MCP stack includes `throttle:60,1` | `AdminMcpTest` + `./scripts/mcp-e2e.sh` |
+| A4 | `published_at` on edit form via `toDateString()` for `$s->date()` | `test_edit_form_preserves_published_at_when_only_excerpt_changes` |
+| A5 | `fromField()` / `placeholder()` / `options()` instead of `->set(...)` | Code review + green tests |
+| A6 | `tag_ids.*` exists rule | `test_edit_form_rejects_invalid_tag_ids` |
+| A7 | `composer.json` `php: ^8.4`; docs say **Laravel 13** (`^13.17`) | README + this log |
+| A8 | Bulk publish: set `published_at` only where `null` | `test_bulk_publish_does_not_overwrite_existing_published_at` |
+| A9 | Removed nav `Post::count()` badge; category delete blocked when `posts_count > 0` | `AdminCategoryTest` |
+| A10 | Renamed `docs/mcp-http-client.json` | README link |
+| A11 | MCP wiring link → https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md | below |
+| A12 | `admin/error` in `admin.tsx`, Vite `resolve.dedupe`, `HandleInertiaRequests` on web stack | `test_edit_form_shows_validation_errors_for_invalid_title` |
+| A13 | `->brand('Blog')`; screenshots re-captured | `docs/screenshots/*.png` |
+
+**Install alignment:** [wiring.md](https://github.com/DiVotek/tbtop/blob/v0.7.0/docs/ai/wiring.md) (MCP + Inertia errors bag).
+
+**MCP article material:** [`docs/mcp-log.md`](mcp-log.md), artifacts under `docs/screenshots/mcp/`, runner `scripts/mcp-e2e.sh`.

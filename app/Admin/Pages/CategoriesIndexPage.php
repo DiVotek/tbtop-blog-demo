@@ -6,7 +6,6 @@ use App\Models\Category;
 use Tbtop\Admin\Actions\ActionCtx;
 use Tbtop\Admin\Actions\Effects;
 use Tbtop\Admin\Dsl\Actions\CreateAction;
-use Tbtop\Admin\Dsl\Actions\DeleteAction;
 use Tbtop\Admin\Dsl\Column;
 use Tbtop\Admin\Dsl\Node;
 use Tbtop\Admin\Dsl\S;
@@ -39,7 +38,7 @@ class CategoriesIndexPage extends Page
                         form: $s->form('category', [
                             $s->text('name')->label('Name')->required()->rules('max:120'),
                             $s->slug('slug')->label('Slug')->required()
-                                ->set('fromField', 'name')
+                                ->fromField('name')
                                 ->rules(['max:120', 'regex:/^[a-z0-9-]+$/', 'unique:categories,slug']),
                             $s->textarea('description')->label('Description')->rules('nullable|string'),
                         ]),
@@ -67,7 +66,21 @@ class CategoriesIndexPage extends Page
                             ->redirect("/admin/categories/{$ctx->key()}/edit"),
                         needs: ['row'],
                     ),
-                    DeleteAction::make($s, using: fn (ActionCtx $ctx) => Category::whereKey($ctx->key())->delete()),
+                    $s->action('delete')->label('Delete')->color('danger')
+                        ->confirm('Delete category?', 'Posts must be moved or deleted first.')
+                        ->handle(function (ActionCtx $ctx): Effects {
+                            $category = Category::withCount('posts')->whereKey($ctx->key())->firstOrFail();
+                            if ($category->posts_count > 0) {
+                                return Effects::make()
+                                    ->notify('Cannot delete: category still has posts')
+                                    ->refreshTable('categories');
+                            }
+                            $category->delete();
+
+                            return Effects::make()
+                                ->notify('Category deleted')
+                                ->refreshTable('categories');
+                        }, needs: ['row']),
                 ])
                 ->toNode(),
         ]);

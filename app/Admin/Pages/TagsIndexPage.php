@@ -39,7 +39,7 @@ class TagsIndexPage extends Page
                         form: $s->form('tag', [
                             $s->text('name')->label('Name')->required()->rules('max:80'),
                             $s->slug('slug')->label('Slug')->required()
-                                ->set('fromField', 'name')
+                                ->fromField('name')
                                 ->rules(['max:80', 'regex:/^[a-z0-9-]+$/', 'unique:tags,slug']),
                         ]),
                         storeUsing: function (ActionCtx $ctx): Effects {

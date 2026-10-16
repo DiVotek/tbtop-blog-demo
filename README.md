@@ -1,6 +1,6 @@
 # tbtop blog demo
 
-A small Laravel blog with an admin panel built on [tbtop/admin](https://github.com/DiVotek/tbtop) v0.7. It covers posts (richtext body, cover image, draft/published), categories, tags, and authors (`users`), plus a minimal public blog front.
+A small Laravel **13** blog with an admin panel built on [tbtop/admin](https://github.com/DiVotek/tbtop) v0.7. It covers posts (richtext body, cover image, draft/published), categories, tags, and authors (`users`), plus a minimal public blog front.
 
 ## Requirements
 
@@ -36,7 +36,7 @@ For local development with hot reload, run `npm run dev` in a second terminal.
 
 ## MCP (optional)
 
-The admin panel exposes an MCP endpoint at `/admin/mcp` when `laravel/mcp` is installed. Create a Sanctum token with the `tbtop-mcp` ability and point your MCP client at the panel URL. See `docs/mcp-claude-desktop.json` for a minimal Claude Desktop config template.
+The admin panel exposes an MCP endpoint at `/admin/mcp` when `laravel/mcp` is installed. Create a Sanctum token with the `tbtop-mcp` ability and point your MCP client at the panel URL. See `docs/mcp-http-client.json` (Cursor HTTP) and `docs/mcp-log.md` (full walkthrough + Claude Desktop via `mcp-remote`).
 
 ## Build journal
 

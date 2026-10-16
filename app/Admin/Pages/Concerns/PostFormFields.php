@@ -19,20 +19,21 @@ trait PostFormFields
             $s->section(['title' => 'Content'], [
                 $s->text('title')->label('Title')->required()->rules('max:200'),
                 $s->slug('slug')->label('Slug')->required()
-                    ->set('fromField', 'title')
+                    ->fromField('title')
                     ->rules(['max:200', 'regex:/^[a-z0-9-]+$/', $slugUniqueRule]),
                 $s->textarea('excerpt')->label('Excerpt')->rules('nullable|string|max:500'),
-                $s->richtext('body')->label('Body')->set('placeholder', 'Write the post…'),
+                $s->richtext('body')->label('Body')->placeholder('Write the post…'),
             ]),
             $s->section(['title' => 'Publishing'], [
                 $s->select('status')->label('Status')
-                    ->set('options', [
+                    ->options([
                         ['value' => PostStatus::Draft->value, 'label' => 'Draft'],
                         ['value' => PostStatus::Published->value, 'label' => 'Published'],
                     ])
                     ->required()
                     ->rules('in:draft,published'),
-                $s->date('published_at')->label('Published at')->rules('nullable|date')
+                $s->date('published_at')->label('Published at')
+                    ->rules('nullable|date')
                     ->hiddenIf('status', '!=', PostStatus::Published->value),
                 $s->media('cover_media_id')->label('Cover image')
                     ->accept(['image/*'])
@@ -43,10 +44,10 @@ trait PostFormFields
                     ->searchable()
                     ->rules('nullable|exists:categories,id'),
                 $s->select('tag_ids')->label('Tags')->multiple()
-                    ->set('options', Tag::query()->orderBy('name')->get()
+                    ->options(Tag::query()->orderBy('name')->get()
                         ->map(fn (Tag $tag): array => ['value' => (string) $tag->id, 'label' => $tag->name])
                         ->all())
-                    ->rules('nullable|array'),
+                    ->rules(['nullable', 'array', 'tag_ids.*' => 'exists:tags,id']),
                 $s->relation('author_id')->label('Author')
                     ->query(fn () => User::query()->orderBy('name'))
                     ->labelKey('name')

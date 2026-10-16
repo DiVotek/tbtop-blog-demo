@@ -27,7 +27,8 @@ class AdminPanel extends Panel
                 NavGroup::make('Overview')->icon('home'),
                 NavGroup::make('Content')->icon('file-text')->collapsible(),
             ])
+            ->brand('Blog')
             ->rootView('admin')
-            ->mcp(['auth:sanctum', 'abilities:tbtop-mcp']);
+            ->mcp(['auth:sanctum', 'abilities:tbtop-mcp', 'throttle:60,1']);
     }
 }

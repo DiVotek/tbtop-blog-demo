@@ -29,7 +29,7 @@ class CategoryEditPage extends Page
         return $s->form('category', [
             $s->text('name')->label('Name')->required()->rules('max:120'),
             $s->slug('slug')->label('Slug')->required()
-                ->set('fromField', 'name')
+                ->fromField('name')
                 ->rules(['max:120', 'regex:/^[a-z0-9-]+$/', "unique:categories,slug,{$category->id}"]),
             $s->textarea('description')->label('Description')->rules('nullable|string'),
             FormActions::saveCancel($s, '/admin/categories'),

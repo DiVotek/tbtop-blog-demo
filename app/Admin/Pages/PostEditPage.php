@@ -30,19 +30,22 @@ class PostEditPage extends Page
     {
         $post = Post::with('tags')->findOrFail(request()->route('post'));
         $record = $post->toArray();
+        $record['published_at'] = $post->published_at?->toDateString();
         $record['tag_ids'] = $post->tags->pluck('id')->map(fn ($id) => (string) $id)->all();
 
         return $s->stack([
             $s->row([
                 $s->action('unpublish')->label('Unpublish')
-                    ->hiddenIf('status', '!=', PostStatus::Published->value)
                     ->handle(function (ActionCtx $ctx): Effects {
-                        Post::query()->whereKey($ctx->request->route('post'))->update([
+                        $postId = $ctx->request->route('post');
+                        Post::query()->whereKey($postId)->update([
                             'status' => PostStatus::Draft,
                             'published_at' => null,
                         ]);
 
-                        return Effects::make()->notify('Post unpublished')->reload();
+                        return Effects::make()
+                            ->notify('Post unpublished')
+                            ->redirect("/admin/posts/{$postId}/edit");
                     }),
             ]),
             $s->form('post', [

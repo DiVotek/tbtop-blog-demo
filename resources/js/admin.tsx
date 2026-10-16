@@ -1,6 +1,7 @@
 import "../css/admin.css";
 
 import { createInertiaApp } from "@inertiajs/react";
+import { AdminErrorPage } from "@tbtop/inertia-admin";
 import { createRoot } from "react-dom/client";
 
 const appName = import.meta.env.VITE_APP_NAME || "Laravel";
@@ -12,7 +13,9 @@ createInertiaApp({
 			const mod = await import("@tbtop/inertia-admin");
 			return { default: mod.AdminPage };
 		}
-		// Admin entry only handles admin/* pages.
+		if (name === "admin/error") {
+			return { default: AdminErrorPage };
+		}
 		throw new Error(`[admin] No component found for page: ${name}`);
 	},
 	setup({ el, App, props }) {

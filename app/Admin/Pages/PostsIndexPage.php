@@ -26,7 +26,7 @@ class PostsIndexPage extends Page
 
     public static function nav(): ?array
     {
-        return ['group' => 'Content', 'label' => 'Posts', 'order' => 1, 'icon' => 'file-text', 'badge' => (string) Post::count()];
+        return ['group' => 'Content', 'label' => 'Posts', 'order' => 1, 'icon' => 'file-text'];
     }
 
     public function title(): string
@@ -114,13 +114,16 @@ class PostsIndexPage extends Page
                 ->bulkActions([
                     $s->action('bulkPublish')->label('Publish selected')->color('primary')->handle(
                         function (ActionCtx $ctx): Effects {
-                            $count = Post::whereKey($ctx->selection)->update([
+                            $ids = $ctx->selection;
+                            $published = Post::whereKey($ids)->update([
                                 'status' => PostStatus::Published,
+                            ]);
+                            Post::whereKey($ids)->whereNull('published_at')->update([
                                 'published_at' => now(),
                             ]);
 
                             return Effects::make()
-                                ->notify("Published {$count} post(s)")
+                                ->notify("Published {$published} post(s)")
                                 ->refreshTable('posts');
                         },
                         needs: ['selection'],

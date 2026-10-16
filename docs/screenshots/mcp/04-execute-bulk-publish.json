@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":4,"result":{"resultType":"complete","content":[{"type":"text","text":"{\"ok\":true,\"effects\":[{\"kind\":\"notify\",\"message\":\"Published 3 post(s)\",\"level\":\"success\"},{\"kind\":\"refreshTable\",\"table\":\"posts\"}]}"}],"isError":false,"_meta":{"io.modelcontextprotocol\/serverInfo":{"name":"Tabletop Admin","version":"1.0.0"}}}}
