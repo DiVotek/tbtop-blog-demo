@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "tbtop-blog-demo": {
+      "url": "http://127.0.0.1:8000/admin/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:TBTOP_TOKEN}"
+      }
+    }
+  }
+}

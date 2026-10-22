@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Admin\Pages;
+
+use App\Admin\Pages\Concerns\PostFormFields;
+use App\Enums\PostStatus;
+use App\Models\Post;
+use Tbtop\Admin\Actions\ActionCtx;
+use Tbtop\Admin\Actions\Effects;
+use Tbtop\Admin\Dsl\Actions\FormActions;
+use Tbtop\Admin\Dsl\Node;
+use Tbtop\Admin\Dsl\S;
+use Tbtop\Admin\Pages\Page;
+
+class PostEditPage extends Page
+{
+    use PostFormFields;
+
+    public static function path(): string
+    {
+        return 'posts/{post}/edit';
+    }
+
+    public function title(): string
+    {
+        return 'Edit post';
+    }
+
+    public function view(S $s): Node
+    {
+        $post = Post::with('tags')->findOrFail(request()->route('post'));
+        $record = $post->toArray();
+        $record['published_at'] = $post->published_at?->toDateString();
+        $record['tag_ids'] = $post->tags->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+        return $s->stack([
+            $s->row([
+                $s->action('unpublish')->label('Unpublish')
+                    ->handle(function (ActionCtx $ctx): Effects {
+                        $postId = $ctx->request->route('post');
+                        Post::query()->whereKey($postId)->update([
+                            'status' => PostStatus::Draft,
+                            'published_at' => null,
+                        ]);
+
+                        return Effects::make()
+                            ->notify('Post unpublished')
+                            ->redirect("/admin/posts/{$postId}/edit");
+                    }),
+            ]),
+            $s->form('post', [
+                ...$this->postFormSections($s, "unique:posts,slug,{$post->id}"),
+                FormActions::saveCancel($s, '/admin/posts', extra: [
+                    $s->action('delete')->label('Delete')->color('danger')
+                        ->confirm('Delete post?', 'This cannot be undone.')
+                        ->handle(function (ActionCtx $ctx): Effects {
+                            Post::whereKey($ctx->request->route('post'))->delete();
+
+                            return Effects::make()->notify('Post deleted')->redirect('/admin/posts');
+                        }),
+                ]),
+            ])
+                ->record($record)
+                ->onSubmit(function (ActionCtx $ctx): Effects {
+                    $post = Post::findOrFail($ctx->params['post'] ?? null);
+                    $form = $ctx->form;
+                    unset($form['tag_ids']);
+                    $post->update($form);
+                    $this->syncPostTags($ctx->form, $post);
+
+                    return Effects::make()->notify('Saved');
+                }),
+        ]);
+    }
+}
